@@ -130,3 +130,5 @@ _book
 
 # Mockserver
 CertificateAuthorityCertificate.pem
+
+.semrel

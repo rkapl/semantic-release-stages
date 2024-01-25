@@ -44,6 +44,29 @@ declare module "semantic-release" {
   }
 
   /**
+   * State of the executed semantic-release stages so far.
+   */
+  export interface State {
+    /** Last stage that was reached (sucesfully or unsucesfully) */
+    stage: null | 'prepare' | 'publish' | 'notify';
+    /** Did the previous stage fail (will fail all subsequent stages) */
+    failed?: boolean;
+
+    /** Do we plan to publish a release? */
+    willPublish?: boolean;
+    
+    /** If so, all information is here */
+    lastRelease: LastRelease;
+    nextRelease: NextRelease;
+    commits: ReadonlyArray<Commit>;
+
+    /* List of all releases done so far through publish */
+    releasesPublished: ReadonlyArray<Release>;
+    /* List of releases done through addChannel */
+    releasesAdded: ReadonlyArray<Release>;
+  };
+
+  /**
    * Context used for the verify conditions step.
    */
   export interface VerifyConditionsContext extends BaseContext {

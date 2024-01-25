@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { pick } from "lodash-es";
+import { assign, pick } from "lodash-es";
 import * as marked from "marked";
 import envCi from "env-ci";
 import { hookStd } from "hook-std";
@@ -19,6 +19,7 @@ import getLogger from "./lib/get-logger.js";
 import { addNote, getGitHead, getTagHead, isBranchUpToDate, push, pushNotes, tag, verifyAuth } from "./lib/git.js";
 import getError from "./lib/get-error.js";
 import { COMMIT_EMAIL, COMMIT_NAME } from "./lib/definitions/constants.js";
+import * as fs from "node:fs/promises";
 
 const require = createRequire(import.meta.url);
 const pkg = require("./package.json");
@@ -34,10 +35,10 @@ async function terminalOutput(text) {
   return marked.parse(text);
 }
 
-/* eslint complexity: off */
-async function run(context, plugins) {
-  const { cwd, env, options, logger, envCi } = context;
-  const { isCi, branch, prBranch, isPr } = envCi;
+/** This function runs before each stage and does basic config & CI verification that we can repeat */
+async function beforeEachStage(context) {
+  const { env, options, logger } = context;
+  const { isCi, isPr, branch, prBranch } = context.envCi;
   const ciBranch = isPr ? prBranch : branch;
 
   if (!isCi && !options.dryRun && !options.noCi) {
@@ -67,6 +68,13 @@ async function run(context, plugins) {
   options.repositoryUrl = await getGitAuthUrl({ ...context, branch: { name: ciBranch } });
   context.branches = await getBranches(options.repositoryUrl, ciBranch, context);
   context.branch = context.branches.find(({ name }) => name === ciBranch);
+  return true;
+}
+
+async function runPrepare(context, plugins) {
+  const { cwd, env, options, logger, envCi } = context;
+  const { branch, prBranch, isPr } = envCi;
+  const ciBranch = isPr ? prBranch : branch;
 
   if (!context.branch) {
     logger.log(
@@ -106,7 +114,8 @@ async function run(context, plugins) {
   await plugins.verifyConditions(context);
 
   const errors = [];
-  context.releases = [];
+  context.releasesPublished = null;
+  context.releasesAdded = null;
   const releaseToAdd = getReleaseToAdd(context);
 
   if (releaseToAdd) {
@@ -147,7 +156,7 @@ async function run(context, plugins) {
       });
 
       const releases = await plugins.addChannel({ ...context, commits, lastRelease, currentRelease, nextRelease });
-      context.releases.push(...releases);
+      context.releasesAdded = releases;
       await plugins.success({ ...context, lastRelease, commits, nextRelease, releases });
     }
   }
@@ -178,7 +187,7 @@ async function run(context, plugins) {
   };
   if (!nextRelease.type) {
     logger.log("There are no relevant changes, so no new version is released.");
-    return context.releases.length > 0 ? { releases: context.releases } : false;
+    return false;
   }
 
   context.nextRelease = nextRelease;
@@ -200,6 +209,11 @@ async function run(context, plugins) {
   nextRelease.notes = await plugins.generateNotes(context);
 
   await plugins.prepare(context);
+  return true;
+}
+
+async function runPublish(context, plugins) {
+  const { cwd, env, options, logger, nextRelease } = context;
 
   if (options.dryRun) {
     logger.warn(`Skip ${nextRelease.gitTag} tag creation in dry-run mode`);
@@ -213,9 +227,13 @@ async function run(context, plugins) {
   }
 
   const releases = await plugins.publish(context);
-  context.releases.push(...releases);
+  context.releasesPublished = releases;
+}
 
-  await plugins.success({ ...context, releases });
+/* eslint complexity: off */
+async function runNotify(context, plugins) {
+  const { options, logger, nextRelease } = context;
+  await plugins.success({ ...context, releases: context.releasesPublished });
 
   logger.success(
     `Published release ${nextRelease.version} on ${nextRelease.channel ? nextRelease.channel : "default"} channel`
@@ -227,8 +245,139 @@ async function run(context, plugins) {
       context.stdout.write(await terminalOutput(nextRelease.notes));
     }
   }
+}
 
-  return pick(context, ["lastRelease", "commits", "nextRelease", "releases"]);
+const savedContextProperties = ["lastRelease", "nextRelease", "commits", "releasesPublished", "releasesAdded"];
+
+async function loadState(stages) {
+  try {
+    const data = await fs.readFile(".semrel/state.json", { encoding: "utf-8" });
+    return JSON.parse(data);
+  } catch (err) {
+    if (err.code == "ENOENT") {
+      throw getError("ENOSTATE", stages);
+    }
+    throw err;
+  }
+}
+
+async function saveState(context, processingState) {
+  const state = {
+    ...processingState,
+    ...pick(context, savedContextProperties),
+  };
+  await fs.mkdir(".semrel", { recursive: true });
+  await fs.writeFile(".semrel/state.json", JSON.stringify(state, null, 2), { encoding: "utf-8" });
+}
+
+function initialState() {
+  return {
+    stage: null,
+  };
+}
+
+function getRequiredStage(stage) {
+  switch (stage) {
+    case "prepare":
+      return null;
+    case "publish":
+      return "prepare";
+    case "notify":
+      return "publish";
+    default:
+      throw getError("ESTAGECONFIG", { stage });
+  }
+}
+
+function contextToResult(context) {
+  const releases = (context.releasesAdded || []).concat(context.releasesPublished || []);
+  if (releases.length == 0) {
+    return false;
+  } else {
+    return {
+      ...pick(context, ["lastRelease", "commits", "nextRelease"]),
+      releases,
+    };
+  }
+}
+
+async function runAll(context, plugins) {
+  // run all stages as one
+  // false = no release needed
+  if (!(await beforeEachStage(context))) {
+    return false;
+  }
+  if (!(await runPrepare(context, plugins))) {
+    // there might be addChannel release
+    return contextToResult(context);
+  }
+  await runPublish(context, plugins);
+  await runNotify(context, plugins);
+
+  return contextToResult(context);
+}
+
+async function runSingle(context, plugins) {
+  let { logger } = context;
+
+  // load state
+  const stage = context.options.stage;
+  const stages = {
+    stage,
+    requiredStage: getRequiredStage(stage),
+  };
+  let state;
+  if (stages.requiredStage === null) {
+    state = initialState();
+  } else {
+    state = await loadState(stages);
+  }
+
+  assign(context, pick(state, savedContextProperties));
+  stages.previousStage = state.stage;
+
+  // validate previous stage
+  let { willPublish, failed } = { state };
+  if (failed) {
+    await saveState(context, { willPublish, stage, failed });
+    throw getError("EPREVIOUSFAIL", stages);
+  }
+
+  if (stages.previousStage !== stages.requiredStage) {
+    throw getError("EBADSTATE", stages);
+  }
+
+  // erarly bail out if nothing to do
+  if (stage != "prepare" && !willPublish) {
+    logger.info(`Skipping ${stage} because there is no release (see prepare stage details)`);
+    return false;
+  }
+
+  // run the stage
+  willPublish = await beforeEachStage(context);
+  if (willPublish) {
+    try {
+      switch (stage) {
+        case "prepare":
+          willPublish = (await runPrepare(context, plugins)) && willPublish;
+          break;
+        case "publish":
+          await runPublish(context, plugins);
+          break;
+        case "notify":
+          await runNotify(context, plugins);
+          break;
+      }
+
+      // save state
+      await saveState(context, { willPublish, stage, failed: false });
+    } catch (exc) {
+      await saveState(context, { willPublish, stage, failed: true });
+      throw exc;
+    }
+  }
+
+  return contextToResult(context);
 }
 
 async function logErrors({ logger, stderr }, err) {
@@ -275,7 +424,8 @@ export default async (cliOptions = {}, { cwd = process.cwd(), env = process.env,
     options.originalRepositoryURL = options.repositoryUrl;
     context.options = options;
     try {
-      const result = await run(context, plugins);
+      const result =
+        context.options.stage === undefined ? await runAll(context, plugins) : await runSingle(context, plugins);
       unhook();
       return result;
     } catch (error) {
