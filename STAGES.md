@@ -1,7 +1,7 @@
 # Using Individual Stages in CI
 
 The original design of semantic-release used steps such as "verify" and "publish" internally,
-but it had to be used as all-in-one tool. Run semantic release and it will do preparation,
+but it had to be used as all-in-one tool. The idea was to run semantic release and it will do preparation,
 build, publishing and everything.
 
 The goal of this project is to decouple semantic-release from the build steps. It splits the tool in stages,
@@ -9,7 +9,7 @@ which you can interleave with your build pipeline. It is still compatible with s
 
 ## Problems
 
-This does not allow you to reuse your existing CI pipelines. Existing CI Pipelines (Github, Gitlab)
+The original monolithic design does not allow you to reuse your existing CI pipelines. Existing CI Pipelines (Github, Gitlab)
 are much more mature than any build steps that you could do inside semantic-release exec. You also
 might want to run the build in a specific container, e.g. to ensure builds on old system, which
 cannot run semantic-release.

@@ -1,28 +1,8 @@
 <h1 align="center" style="border-bottom: none;">📦🚀 semantic-release</h1>
 <h3 align="center">Fully automated version management and package publishing</h3>
 <p align="center">
-  <a href="https://github.com/semantic-release/semantic-release/discussions">
-    <img alt="Join the community on GitHub Discussions" src="https://img.shields.io/badge/Join%20the%20community-on%20GitHub%20Discussions-blue">
-  </a>
-  <a href="https://github.com/semantic-release/semantic-release/actions?query=workflow%3ATest+branch%3Amaster">
-    <img alt="Build states" src="https://github.com/semantic-release/semantic-release/workflows/Test/badge.svg">
-  </a>
-  <a href="https://securityscorecards.dev/viewer/?uri=github.com/semantic-release/semantic-release">
-    <img alt="OpenSSF Scorecard" src="https://api.securityscorecards.dev/projects/github.com/semantic-release/semantic-release/badge">
-  </a>
-  <a href="#badge">
-    <img alt="semantic-release: angular" src="https://img.shields.io/badge/semantic--release-angular-e10079?logo=semantic-release">
-  </a>
-</p>
-<p align="center">
-  <a href="https://www.npmjs.com/package/semantic-release">
-    <img alt="npm latest version" src="https://img.shields.io/npm/v/semantic-release/latest.svg">
-  </a>
-  <a href="https://www.npmjs.com/package/semantic-release">
-    <img alt="npm next version" src="https://img.shields.io/npm/v/semantic-release/next.svg">
-  </a>
-  <a href="https://www.npmjs.com/package/semantic-release">
-    <img alt="npm beta version" src="https://img.shields.io/npm/v/semantic-release/beta.svg">
+  <a href="https://github.com/rkapl/semantic-release-stages/actions?query=workflow%3ATest+branch%3Amaster">
+    <img alt="Build states" src="https://github.com/rkapl/semantic-release-stages/workflows/Test/badge.svg">
   </a>
 </p>
 
@@ -30,7 +10,9 @@
 
 This removes the immediate connection between human emotions and version numbers, strictly following the [Semantic Versioning](http://semver.org) specification and communicating the **impact** of changes to consumers.
 
-> Trust us, this will change your workflow for the better. – [egghead.io](https://egghead.io/lessons/javascript-how-to-write-a-javascript-library-automating-releases-with-semantic-release)
+## This Fork
+
+Allows you to use your CI for build and publish and only call semantic-release when needed. More details in [Stages](STAGES.md).
 
 ## Highlights
 
@@ -162,7 +144,3 @@ Let people know that your package is published using **semantic-release** and wh
 | [![Stephan Bönnemann](https://github.com/boennemann.png?size=100)](https://github.com/boennemann) | [![Rolf Erik Lekang](https://github.com/relekang.png?size=100)](https://github.com/relekang) | [![Johannes Jörg Schmidt](https://github.com/jo.png?size=100)](https://github.com/jo) | [![Finn Pauls](https://github.com/finnp.png?size=100)](https://github.com/finnp) | [![Christoph Witzko](https://github.com/christophwitzko.png?size=100)](https://github.com/christophwitzko) |
 | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | [Stephan Bönnemann](https://github.com/boennemann)                                                | [Rolf Erik Lekang](https://github.com/relekang)                                              | [Johannes Jörg Schmidt](https://github.com/jo)                                        | [Finn Pauls](https://github.com/finnp)                                           | [Christoph Witzko](https://github.com/christophwitzko)                                                     |
-
-<p align="center">
-  <img alt="Kill all humans" src="media/bender.png">
-</p>
