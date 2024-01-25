@@ -20,6 +20,7 @@ import { addNote, getGitHead, getTagHead, isBranchUpToDate, push, pushNotes, tag
 import getError from "./lib/get-error.js";
 import { COMMIT_EMAIL, COMMIT_NAME } from "./lib/definitions/constants.js";
 import * as fs from "node:fs/promises";
+import { stateToShellInclude } from "./lib/shell-state.js";
 
 const require = createRequire(import.meta.url);
 const pkg = require("./package.json");
@@ -266,8 +267,10 @@ async function saveState(context, processingState) {
     ...processingState,
     ...pick(context, savedContextProperties),
   };
+
   await fs.mkdir(".semrel", { recursive: true });
   await fs.writeFile(".semrel/state.json", JSON.stringify(state, null, 2), { encoding: "utf-8" });
+  await fs.writeFile(".semrel/state.sh", stateToShellInclude(state), { encoding: "utf-8" });
 }
 
 function initialState() {
@@ -337,7 +340,7 @@ async function runSingle(context, plugins) {
   stages.previousStage = state.stage;
 
   // validate previous stage
-  let { willPublish, failed } = { state };
+  let { willPublish, failed } = state;
   if (failed) {
     await saveState(context, { willPublish, stage, failed });
     throw getError("EPREVIOUSFAIL", stages);
@@ -348,9 +351,12 @@ async function runSingle(context, plugins) {
   }
 
   // erarly bail out if nothing to do
-  if (stage != "prepare" && !willPublish) {
-    logger.info(`Skipping ${stage} because there is no release (see prepare stage details)`);
-    return false;
+  if (stage != "prepare") {
+    if (!willPublish) {
+      logger.info(`Skipping ${stage} because there is no release (see prepare stage details)`);
+      await saveState(context, { willPublish, stage, failed });
+      return false;
+    }
   }
 
   // run the stage

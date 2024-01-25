@@ -56,9 +56,9 @@ declare module "semantic-release" {
     willPublish?: boolean;
     
     /** If so, all information is here */
-    lastRelease: LastRelease;
-    nextRelease: NextRelease;
-    commits: ReadonlyArray<Commit>;
+    lastRelease?: LastRelease;
+    nextRelease?: NextRelease;
+    commits:? ReadonlyArray<Commit>;
 
     /* List of all releases done so far through publish */
     releasesPublished: ReadonlyArray<Release>;
