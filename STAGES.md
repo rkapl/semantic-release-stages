@@ -59,3 +59,25 @@ It is worth to mention that the `addChannel` step is in `preparePhase`. So do no
 having side effects if you use this feature. This step is run if
 GIT tags are merged into a branch. Since the steps only adds tags existing artifacts, it does not depend
 on a build being done.
+
+
+## Shell Variables
+
+`semrel/state.sh` contains variables that can be source by your shell scripts. These variables are available:
+
+- `SR_STAGE`: last stage that was executed (sucesfully or not), e.g. `prepare`, `publish`, `notify`.
+- `SR_WILL_PUBLISH`: is semantic release in release mode (did it or will it publish a release, unless failure occurs)?
+- `SR_PUBLISH`: should you (the CI script) publish a release now? True if `SR_WILL_PUBLISH && SR_STAGE == publish && !SR_FAILED`
+- `SR_FAILED`: did any of the previous stages fail?
+- `SR_NEXT_VERSION`: version of release to be published (valid only if `SR_WILL_PUBLISH`)
+- `SR_NEXT_GIT_TAG`: GIT tag of the next release
+- `SR_NEXT_TYPE`: type of next release, e.g. `patch`
+- `SR_NEXT_CHANNEL`: release channel
+
+If there was a previous release, there will be also `SR_PREVIOUS_*` shell variables available.
+
+Most of the scripts should:
+ - not access any semantic-release variables in their build phase and build anyway
+    - but may check `SR_WILL_PUBLISH` to e.g. omit some release preparation if it is appropriate
+ - check `SR_PUBLISH` in their publish phase and feed `SR_NEXT_VERSION` to the publish tools
+
