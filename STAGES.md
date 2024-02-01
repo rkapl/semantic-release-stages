@@ -41,7 +41,13 @@ The failure notification plugins will be called, but only for failures within se
 ## Communication
 
 The stages must communicate. First, with each other, to avoid repeated work (downloading commits twice etc.).
-Second, with the CI pipelines -- to tell it which version to use, if it should publish etc.
+Second, with the CI jobs written by you -- to tell it which version to use during build, if it should publish etc.
+
+This is done using JSON files. Each stage produces a JSON file with the results of the stage, e.g. `0_publish.json`.
+For convenient use from shell scripts, a sourceable files like `0_publish.sh` are also produced.
+
+_Note:_ Unfortunately, we must produce separate files, because some CI solutions effectively do not allow overwriting files
+(see https://gitlab.com/gitlab-org/gitlab/-/issues/324412).
 
 This state meta-data is stored in the `.semrel` directory.
 
@@ -60,14 +66,13 @@ having side effects if you use this feature. This step is run if
 GIT tags are merged into a branch. Since the steps only adds tags existing artifacts, it does not depend
 on a build being done.
 
-
 ## Shell Variables
 
 `semrel/state.sh` contains variables that can be source by your shell scripts. These variables are available:
 
 - `SR_STAGE`: last stage that was executed (sucesfully or not), e.g. `prepare`, `publish`, `notify`.
 - `SR_WILL_PUBLISH`: is semantic release in release mode (did it or will it publish a release, unless failure occurs)?
-- `SR_PUBLISH`: should you (the CI script) publish a release now? True if `SR_WILL_PUBLISH && SR_STAGE == publish && !SR_FAILED`
+- `SR_PUBLISH`: alias to `SR_WILL_PUBLISH`
 - `SR_FAILED`: did any of the previous stages fail?
 - `SR_NEXT_VERSION`: version of release to be published (valid only if `SR_WILL_PUBLISH`)
 - `SR_NEXT_GIT_TAG`: GIT tag of the next release
@@ -77,7 +82,7 @@ on a build being done.
 If there was a previous release, there will be also `SR_PREVIOUS_*` shell variables available.
 
 Most of the scripts should:
- - not access any semantic-release variables in their build phase and build anyway
-    - but may check `SR_WILL_PUBLISH` to e.g. omit some release preparation if it is appropriate
- - check `SR_PUBLISH` in their publish phase and feed `SR_NEXT_VERSION` to the publish tools
 
+- not access any semantic-release variables in their build phase and build anyway
+  - but may check `SR_WILL_PUBLISH` to e.g. omit some release preparation if it is appropriate
+- check `SR_PUBLISH` in their publish phase and feed `SR_NEXT_VERSION` to the publish tools

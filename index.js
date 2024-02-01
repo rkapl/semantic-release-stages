@@ -251,15 +251,26 @@ async function runNotify(context, plugins) {
 const savedContextProperties = ["lastRelease", "nextRelease", "commits", "releasesPublished", "releasesAdded"];
 
 async function loadState(stages) {
-  try {
-    const data = await fs.readFile(".semrel/state.json", { encoding: "utf-8" });
-    return JSON.parse(data);
-  } catch (err) {
-    if (err.code == "ENOENT") {
-      throw getError("ENOSTATE", stages);
-    }
-    throw err;
+  const states = [];
+  for (const file of await fs.readdir(".semrel", { encoding: "utf-8" })) {
+    const match = /^(\d+)_.*\.json$/.exec(file);
+    if (match === null) continue;
+    states.push({
+      file,
+      index: parseInt(match[1]),
+    });
   }
+  states.sort(({ index }) => index);
+
+  if (states.length == 0) throw getError("ENOSTATE", stages);
+
+  const stateRef = states.pop();
+  const data = await fs.readFile(".semrel/" + stateRef.file, { encoding: "utf-8" });
+  // console.log(`Using state from ${stateRef.file}`);
+  return {
+    ...JSON.parse(data),
+    stateIndex: stateRef.index,
+  };
 }
 
 async function saveState(context, processingState) {
@@ -267,15 +278,27 @@ async function saveState(context, processingState) {
     ...processingState,
     ...pick(context, savedContextProperties),
   };
+  delete state.stateIndex;
+
+  const name = `${processingState.stateIndex + 1}_${processingState.stage}`;
+
+  if (processingState.stage == "prepare") {
+    for (const file of await fs.readdir(".semrel", { encoding: "utf-8" })) {
+      await fs.unlink(".semrel/" + file);
+    }
+  }
 
   await fs.mkdir(".semrel", { recursive: true });
-  await fs.writeFile(".semrel/state.json", JSON.stringify(state, null, 2), { encoding: "utf-8" });
-  await fs.writeFile(".semrel/state.sh", stateToShellInclude(state), { encoding: "utf-8" });
+  const stateCombiner = "for s in $(find .semrel -name '?_*.sh'); do source $s; done";
+  await fs.writeFile(`.semrel/state.sh`, stateCombiner, { encoding: "utf-8" });
+  await fs.writeFile(`.semrel/${name}.json`, JSON.stringify(state, null, 2), { encoding: "utf-8" });
+  await fs.writeFile(`.semrel/${name}.sh`, stateToShellInclude(state), { encoding: "utf-8" });
 }
 
 function initialState() {
   return {
     stage: null,
+    stateIndex: -1,
   };
 }
 
@@ -340,9 +363,9 @@ async function runSingle(context, plugins) {
   stages.previousStage = state.stage;
 
   // validate previous stage
-  let { willPublish, failed } = state;
+  let { willPublish, failed, stateIndex } = state;
   if (failed) {
-    await saveState(context, { willPublish, stage, failed });
+    await saveState(context, { willPublish, stage, stateIndex, failed });
     throw getError("EPREVIOUSFAIL", stages);
   }
 
@@ -354,7 +377,7 @@ async function runSingle(context, plugins) {
   if (stage != "prepare") {
     if (!willPublish) {
       logger.info(`Skipping ${stage} because there is no release (see prepare stage details)`);
-      await saveState(context, { willPublish, stage, failed });
+      await saveState(context, { willPublish, stage, stateIndex, failed });
       return false;
     }
   }
@@ -376,9 +399,9 @@ async function runSingle(context, plugins) {
       }
 
       // save state
-      await saveState(context, { willPublish, stage, failed: false });
+      await saveState(context, { willPublish, stage, stateIndex, failed: false });
     } catch (exc) {
-      await saveState(context, { willPublish, stage, failed: true });
+      await saveState(context, { willPublish, stage, stateIndex, failed: true });
       throw exc;
     }
   }
