@@ -283,7 +283,16 @@ async function saveState(context, processingState) {
   const name = `${processingState.stateIndex + 1}_${processingState.stage}`;
 
   if (processingState.stage == "prepare") {
-    for (const file of await fs.readdir(".semrel", { encoding: "utf-8" })) {
+    // clear all files in the state directory if starting from prepare
+    let files;
+    try {
+      files = await fs.readdir(".semrel", { encoding: "utf-8" });
+    } catch (e) {
+      if (e.code == "ENOENT") {
+        files = [];
+      }
+    }
+    for (const file of files) {
       await fs.unlink(".semrel/" + file);
     }
   }
